@@ -132,6 +132,25 @@ class StandardDiagnostics(Diagnostic):
         cavg = uhat[3].to_physical().average()
         if uhat.grid.comm.rank == 0:
             return cavg
+
+    def rho2(self,equations,uhat):
+
+        ky_loc_start = uhat.grid._local_ky_slice.start
+        ky_loc_stop  = uhat.grid._local_ky_slice.stop
+        
+        kz_loc_start = uhat.grid._local_kz_slice.start
+        kz_loc_stop  = uhat.grid._local_kz_slice.stop
+
+        tmp = uhat.copy()
+  
+        if (kz_loc_start == 0 and ky_loc_start == 0 ):
+            #set the average to zero
+            tmp[3,0,0,0] = 0
+
+        c2 = (tmp[3]**2).norm()
+
+        if uhat.grid.comm.rank == 0:
+            return 0.5*c2
     
     def tke(self, equations, uhat):
         """Compute the turbulent kinetic energy"""
