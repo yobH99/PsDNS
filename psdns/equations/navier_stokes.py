@@ -558,32 +558,32 @@ class Boussinesq(RotationalNavierStokes):
         s._data = numpy.ascontiguousarray(s._data)
         return s
 
-    def band(self, grid, kmin, kmax, seed=123):
-        if seed == None:
-            warnings.warn(
-                "A seed of None for Boussinesq.band() will result "
-                "in inconsistent initialization across MPI ranks."
-                )
-        # Check kmax fits on the grid!
-        x = grid.x[:2,:,:,0]
-        z = numpy.zeros(shape=x[0].shape)
-        # Since the loop will execute identically on all ranks, rng will
-        # generate the same random numbers.
-        rng = numpy.random.default_rng(seed)
-        for n in range(kmax):
-            for m in range(kmax):
-                k = numpy.sqrt(n**2 + m**2)
-                if k >= kmin and k <= kmax:
-                    z += (
-                        numpy.cos(2*numpy.pi*(n*x[0]/grid.box_size[0]+rng.random()))
-                        *numpy.cos(2*numpy.pi*(m*x[1]/grid.box_size[1]+rng.random()))
-                        )
-        return z
+    #def band(self, grid, kmin, kmax, seed=123):
+    #    if seed == None:
+    #        warnings.warn(
+    #            "A seed of None for Boussinesq.band() will result "
+    #            "in inconsistent initialization across MPI ranks."
+    #            )
+    #    # Check kmax fits on the grid!
+    #    x = grid.x[:2,:,:,0]
+    #    z = numpy.zeros(shape=x[0].shape)
+    #    # Since the loop will execute identically on all ranks, rng will
+    #    # generate the same random numbers.
+    #    rng = numpy.random.default_rng(seed)
+    #    for n in range(kmax):
+    #        for m in range(kmax):
+    #            k = numpy.sqrt(n**2 + m**2)
+    #            if k >= kmin and k <= kmax:
+    #                z += (
+    #                    numpy.cos(2*numpy.pi*(n*x[0]/grid.box_size[0]+rng.random()))
+    #                    *numpy.cos(2*numpy.pi*(m*x[1]/grid.box_size[1]+rng.random()))
+    #                    )
+    #    return z
 
     def spectrum(self,k):
         return k**(-2)
 
-    def band2(self, grid, Nmin, Nmax, E0, seed=123):
+    def band(self, grid, Nmin, Nmax, E0, seed=123):
         if seed is None:
             warnings.warn(
                 "A seed of None for Boussinesq.band() will result "
