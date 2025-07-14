@@ -580,10 +580,10 @@ class Boussinesq(RotationalNavierStokes):
                         )
         return z
 
-        def spectrum(self,k):
-            return k**(-2)
+    def spectrum(self,k):
+        return k**(-2)
 
-        def band2(self, grid, Nmin, Nmax, E0, seed=123):
+    def band2(self, grid, Nmin, Nmax, E0, seed=123):
         if seed is None:
             warnings.warn(
                 "A seed of None for Boussinesq.band() will result "
@@ -667,7 +667,6 @@ class Boussinesq(RotationalNavierStokes):
                 
         var_z = numpy.mean(z**2)
         print("desired E0:", E0_local, "actual var(z):", var_z)
-        
         return z
 
 
