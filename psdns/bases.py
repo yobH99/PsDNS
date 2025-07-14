@@ -205,24 +205,31 @@ class SpectralGrid(object):
             fftfreq1[k[1]],
             rfftfreq[k[2]]
             ])
+        
         # Note, the factor of 2 pi is to get radial frequencies, rather
         # than circular frequencies.
+
         #: The local wavenumber magnitude squared.
-        self.k2 = numpy.sum(self.k*self.k, axis=0)
+        self.k2    = numpy.sum(self.k*self.k, axis=0)
+        #: The local plane wavenumber magnitude squared
+        self.k2_2D = numpy.sum(self.k[:2]*self.k[:2],axis=0 )
+
         #: The local wavenumber magnitude.
         self.kmag = numpy.sqrt(self.k2)
+        #: The local planar wavenumber magnitude.
+        self.kmag_2D = numpy.sqrt(self.k2_2D)
+
         #: The global maximum wavenumber magnitude.
-        self.kmax = 2*numpy.pi*numpy.sqrt(
+        self.kmax = 2.0*numpy.pi*numpy.sqrt(
             numpy.amax(fftfreq0**2) + numpy.amax(fftfreq1**2)
             + numpy.amax(rfftfreq**2)
             )
-        self.dk = 2*numpy.pi/self.box_size
-
-        #: The 2D-XY maximum wavenumber magnitude
-        self.kmax_2D = numpy.sqrt(
-            numpy.amax(fftfreq0**2) + numpy.amax(fftfreq1**2)
-            )
-        self.dk_2D = (fftfreq0[1]*fftfreq1[1])**(1/2)
+        #: the global planar maximum wavenumber magnitude
+        self.kmax_2D = 2.0*numpy.pi*numpy.sqrt(
+            numpy.amax(fftfreq0**2) + numpy.amax(fftfreq1**2))
+        
+        self.dk = 2.0*numpy.pi*(fftfreq0[1]*fftfreq1[1]*rfftfreq[1])**(1/3)
+        self.dk_2D = 2.0*numpy.pi*(fftfreq0[1]*fftfreq1[1])**(1/2)
 
         s1 = self.sdims[1] // 2 + 1
         aliased_size = self.pdims[1] - self.sdims[1]

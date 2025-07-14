@@ -726,11 +726,11 @@ class spectral_length_2D(Diagnostic):
         #E_dk is the spectrum divided by k
 
         for kz in range(kz_loc):
-            kbin = 0 
+            kbin = 0
             for k, Phi in numpy.nditer([grid.kmag_2D[...,kz],phi[...,kz]]):
                 kbin = k + dk 
                 idxb = int(kbin/dk) - 1 
-
+        
                 E_dk_local[idxb,k0+kz]   = E_dk_local[idxb,k0+kz] + Phi/kbin*2.0*numpy.pi*k
                 E_nk_local[idxb,k0+kz]   = E_nk_local[idxb,k0+kz] + Phi*2.0*numpy.pi*k
                 cntb_local[idxb,k0+kz]   = cntb_local[idxb,k0+kz] + 1 
@@ -788,7 +788,7 @@ class spectral_length_2D(Diagnostic):
         
         if uhat.grid.comm.rank == 0:
             base_filename = self.outfile.name
-            print(base_filename)
+            #print(base_filename)
             self.nt = self.nt + 1
             
             for ziter, zz in enumerate(range(0, int(uhat.grid.pdims[2]), 4)):

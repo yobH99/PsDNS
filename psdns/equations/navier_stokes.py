@@ -483,7 +483,7 @@ class Boussinesq(RotationalNavierStokes):
         = - \left( \delta_{ij} -\frac{k_i k_j}{k^2} \right) 
             \left( \widehat{\mathrm{NL}}_j - \hat{c} g_j \right) 
     """
-    def __init__(self, g=-1, **kwargs):
+    def __init__(self, At, g=-1, **kwargs):
         """Return a Boussinesq equation object.
 
         Intantiating returns a Boussinsesq equation object with
@@ -492,6 +492,7 @@ class Boussinesq(RotationalNavierStokes):
         super().__init__(**kwargs)
 
         self.g = g
+        self.At = At
 
     def nonlinear(self, uhat, u):
         r"""Compute the Boussinesq non-linear term.
@@ -510,7 +511,7 @@ class Boussinesq(RotationalNavierStokes):
             \left( \widehat{u_{k}u_{j,k}} - \hat{c} g_{j} \right)
         """
         nl = super().nonlinear(uhat, u)
-        nl[2] -= self.g*uhat[3]
+        nl[2] -= self.g*uhat[3]*2.0*self.At
         return nl
 
     def pressure(self, uhat):
