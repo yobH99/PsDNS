@@ -217,6 +217,13 @@ class SpectralGrid(object):
             + numpy.amax(rfftfreq**2)
             )
         self.dk = 2*numpy.pi/self.box_size
+
+        #: The 2D-XY maximum wavenumber magnitude
+        self.kmax_2D = numpy.sqrt(
+            numpy.amax(fftfreq0**2) + numpy.amax(fftfreq1**2)
+            )
+        self.dk_2D = (fftfreq0[1]*fftfreq1[1])**(1/2)
+
         s1 = self.sdims[1] // 2 + 1
         aliased_size = self.pdims[1] - self.sdims[1]
         #: A list of MPI data types decomposing z pencils for

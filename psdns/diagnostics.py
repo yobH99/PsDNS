@@ -562,6 +562,7 @@ class BuoyantPressProfilesWithConcentration(PressureProfilesWithConcentration):
 
 
 class Spectra(Diagnostic):
+
     r"""A diagnostic class for velocity spectra
 
     The full velocity spectrum is a tensor function of a
@@ -584,6 +585,7 @@ class Spectra(Diagnostic):
         E(k)
         = \iint_{|\boldsymbol{k}|=k} \Phi_{ii}(\boldsymbol{k}) dS
     """
+
     def integrate_shell(self, u, dk, grid):
         nbins = int(grid.kmax/dk)+1
         spectrum = numpy.zeros([nbins])
@@ -591,13 +593,14 @@ class Spectra(Diagnostic):
         for k, v in numpy.nditer([grid.kmag, u]):
             spectrum[int(k/dk)] += v
             ispectrum[int(k/dk)] += 1
+
         k = numpy.arange(nbins)*dk
         spectrum = grid.comm.reduce(spectrum)
         ispectrum = grid.comm.reduce(ispectrum)
         if grid.comm.rank == 0:
-            spectrum *= 4*numpy.pi*k**2/(ispectrum/3)/numpy.prod(grid.dk)
+            spectrum *= 4*numpy.pi*k**2/(ispectrum/3)
         return k, spectrum
-        
+    
     def diagnostic(self, time, equations, uhat):
         """Write the spectrum to a file
 
@@ -608,7 +611,7 @@ class Spectra(Diagnostic):
         """
         k, spectrum = self.integrate_shell(
             (uhat[:3]*uhat[:3].conjugate()).real/2,
-            numpy.prod(uhat.grid.dk)**(1/3),
+            uhat.grid.dk,
             uhat.grid
             )
         if uhat.grid.comm.rank == 0:
@@ -616,6 +619,188 @@ class Spectra(Diagnostic):
                 self.outfile.write("{} {}\n".format(i, s))
             self.outfile.write("\n\n")
             self.outfile.flush()
+    
+class spectral_length_3D(Diagnostic):
+
+    header = "t = {}\nk E_u  E_uk  E_v  E_vk  E_w  E_wk  E_c  E_ck"  
+
+    def correlation_width_3D(self,phi,dk,grid):
+        
+        nbins = int(grid.kmax/dk)+1
+
+        #E_nk is the spectrum not divided by k
+        #E_dk is the spectrum divided by k
+
+        E_nk  = numpy.zeros([nbins])
+        E_dk  = numpy.zeros([nbins])
+        cntb  = numpy.zeros([nbins], dtype=int)
+
+        for k, Phi in numpy.nditer([grid.kmag,phi]):
+            
+            kbin = k + dk
+            idxb = int(kbin/dk) - 1
+            
+            E_dk[idxb]   = E_dk[idxb]   + Phi/kbin
+            E_nk[idxb]   = E_nk[idxb]   + Phi
+            cntb[idxb]   = cntb[idxb]   + 1 
+
+        k    = dk + numpy.arange(nbins)*dk
+        E_nk = grid.comm.reduce(E_nk)
+        E_dk = grid.comm.reduce(E_dk)
+        cntb = grid.comm.reduce(cntb)
+
+        if grid.comm.rank == 0:
+            E_nk = E_nk * 4.0*numpy.pi*k**2/cntb
+            E_dk = E_dk * 4.0*numpy.pi*k**2/cntb
+        
+        return k, E_nk, E_dk
+
+    def diagnostic(self, time, equations, uhat):
+       
+        uhat_prime = uhat.disturbance()
+
+        #compute correlation phi = u
+        k, E_u_nk, E_u_dk  = self.correlation_width_3D(
+            (uhat_prime[0]*uhat_prime[0].conjugate()).real/2.0,
+            uhat.grid.dk,
+            uhat.grid
+            )
+        
+        #compute correlation phi = v
+        k, E_v_nk, E_v_dk  = self.correlation_width_3D(
+            (uhat_prime[1]*uhat_prime[1].conjugate()).real/2.0,
+            uhat.grid.dk,
+            uhat.grid
+            )
+        #compute correlation phi = w
+        k, E_w_nk, E_w_dk  = self.correlation_width_3D(
+            (uhat_prime[2]*uhat_prime[2].conjugate()).real/2.0,
+            uhat.grid.dk,
+            uhat.grid
+            )
+        #compute correlation phi = w
+        k, E_c_nk, E_c_dk  = self.correlation_width_3D(
+            (uhat_prime[3]*uhat_prime[3].conjugate()).real/2.0,
+            uhat.grid.dk,
+            uhat.grid
+            )
+        
+        #write to file
+        if uhat.grid.comm.rank == 0:
+            numpy.savetxt( self.outfile, 
+                          numpy.vstack([k, E_u_nk, E_u_dk, E_v_nk, E_v_dk, E_w_nk, 
+                                        E_w_dk, E_c_nk, E_c_dk]).T,
+                          header=self.header.format(time))
+            self.outfile.write("\n\n")
+            self.outfile.flush()
+
+class spectral_length_2D(Diagnostic):
+    header = "t = {}\nk E_u  E_uk  E_v  E_vk  E_w  E_wk  E_c  E_ck"  
+    nt = 0 
+    def correlation_width_2D(self,phi,dk,grid):
+        
+        #number of bin in the 2D plane
+        nbins = int(grid.kmax_2D/dk)+1
+
+        #only half-modes retained since its hermitian
+        global_kz   = int((grid.sdims[-1]+1)/2)
+        global_nz   = grid.pdims[-1]
+        local_slice = grid._local_kz_slice
+
+        k0     = local_slice.start
+        k1     = local_slice.stop
+        kz_loc = k1 - k0 
+        E_nk_local = numpy.zeros([nbins,global_kz])
+        E_dk_local = numpy.zeros([nbins,global_kz])
+        cntb_local = numpy.zeros([nbins,global_kz])
+
+        
+        #global array to perform the reduction
+        E_nk_global = numpy.zeros([nbins,global_kz])
+        E_dk_global = numpy.zeros([nbins,global_kz])
+        cntb_global = numpy.zeros([nbins,global_kz])
+
+        k_vec = dk + numpy.arange(nbins)*dk
+        
+        #E_nk is the spectrum not divided by k
+        #E_dk is the spectrum divided by k
+
+        for kz in range(kz_loc):
+            kbin = 0 
+            for k, Phi in numpy.nditer([grid.kmag_2D[...,kz],phi[...,kz]]):
+                kbin = k + dk 
+                idxb = int(kbin/dk) - 1 
+
+                E_dk_local[idxb,k0+kz]   = E_dk_local[idxb,k0+kz] + Phi/kbin*2.0*numpy.pi*k
+                E_nk_local[idxb,k0+kz]   = E_nk_local[idxb,k0+kz] + Phi*2.0*numpy.pi*k
+                cntb_local[idxb,k0+kz]   = cntb_local[idxb,k0+kz] + 1 
+        
+        
+        grid.comm.Allreduce(E_dk_local, E_dk_global, op=MPI.SUM)
+        grid.comm.Allreduce(E_nk_local, E_nk_global, op=MPI.SUM)
+        grid.comm.Allreduce(cntb_local, cntb_global, op=MPI.SUM)
+
+
+        index = cntb_global != 0
+        E_nk_global[index] = E_nk_global[index]/cntb_global[index]
+        E_dk_global[index] = E_dk_global[index]/cntb_global[index]
+
+        E_dk_physical = numpy.fft.irfft(E_dk_global, n=global_nz, axis=-1)*2.0*global_nz
+        E_nk_physical = numpy.fft.irfft(E_nk_global, n=global_nz, axis=-1)*2.0*global_nz
+
+        #print(E_dk_physical.shape,'after ifft')
+        #print(E_dk_global.shape,'before ifft')
+
+        
+        return k_vec, E_nk_physical, E_dk_physical
+
+        
+    def diagnostic(self, time, equations, uhat):
+
+        uhat_prime = uhat.disturbance()
+        
+        #compute correlation phi = u
+        k_vec, E_unk, E_udk  = self.correlation_width_2D(
+            (uhat_prime[0]*uhat_prime[0].conjugate()).real/2.0,
+            uhat.grid.dk_2D,
+            uhat.grid
+            )
+        #compute correlation phi = v
+        k_vec, E_vnk, E_vdk  = self.correlation_width_2D(
+            (uhat_prime[1]*uhat_prime[1].conjugate()).real/2.0,
+            uhat.grid.dk_2D,
+            uhat.grid
+            )
+        
+        #compute correlation phi = w
+        k_vec, E_wnk, E_wdk  = self.correlation_width_2D(
+            (uhat_prime[2]*uhat_prime[2].conjugate()).real/2.0,
+            uhat.grid.dk_2D,
+            uhat.grid
+            )
+        
+        #compute correlation phi = c
+        k_vec, E_cnk, E_cdk  = self.correlation_width_2D(
+            (uhat_prime[3]*uhat_prime[3].conjugate()).real/2.0,
+            uhat.grid.dk_2D,
+            uhat.grid
+            )
+        
+        if uhat.grid.comm.rank == 0:
+            base_filename = self.outfile.name
+            print(base_filename)
+            self.nt = self.nt + 1
+            
+            for ziter, zz in enumerate(range(0, int(uhat.grid.pdims[2]), 4)):
+                filename = f"{base_filename}_z{ziter}_t{self.nt}.dat"
+                with open(filename, 'a') as out_file:
+                    numpy.savetxt(out_file,numpy.vstack([k_vec,E_unk[:, zz], E_udk[:, zz],
+                                                         E_vnk[:, zz], E_vdk[:, zz],
+                                                         E_wnk[:, zz], E_wdk[:, zz],
+                                                         E_cnk[:, zz], E_cdk[:, zz]]).T,
+                                                         header=self.header.format(time))
+                    out_file.write("\n\n")
+
 
 
 class FieldDump(Diagnostic):
